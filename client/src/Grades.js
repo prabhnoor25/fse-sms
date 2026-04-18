@@ -1,0 +1,105 @@
+import React, { useEffect, useState } from 'react';
+import { createGrade, getGradesByStudent, getStudents, getAssignments } from './api';
+import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, MenuItem, Select, FormControl, InputLabel } from '@mui/material';
+
+export default function Grades({ token }) {
+  const [grades, setGrades] = useState([]);
+  const [form, setForm] = useState({ studentId: '', assignmentId: '', marks: '', remarks: '' });
+  const [students, setStudents] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [queryStudent, setQueryStudent] = useState('');
+  const [error, setError] = useState('');
+
+  const loadForStudent = async (studentId) => {
+    const res = await getGradesByStudent(token, studentId);
+    if (res.grades) setGrades(res.grades);
+    else setError(res.error || 'Failed to load grades');
+  };
+
+  const loadRefs = async () => {
+    try{
+      const s = await getStudents(token); if (s.students) setStudents(s.students);
+      const a = await getAssignments(token); if (a.assignments) setAssignments(a.assignments);
+    }catch(e){}
+  };
+
+  useEffect(() => { loadRefs(); }, [token]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const payload = { studentId: form.studentId, assignmentId: form.assignmentId, marks: parseFloat(form.marks), remarks: form.remarks };
+    const res = await createGrade(token, payload);
+    if (res.grade) { setForm({ studentId: '', assignmentId: '', marks: '', remarks: '' }); setError(''); if (queryStudent) loadForStudent(queryStudent); }
+    else setError(res.error || 'Create failed');
+  };
+
+  const handleLoad = async () => {
+    if (!queryStudent) return setError('Enter student ID');
+    setError('');
+    await loadForStudent(queryStudent);
+  };
+
+  return (
+    <Box>
+      <Typography variant="h5" gutterBottom>Grades</Typography>
+      {error && <Alert severity="error">{error}</Alert>}
+      <Paper sx={{ p:2, mb:2 }}>
+        <form onSubmit={handleSubmit}>
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Student</InputLabel>
+            <Select value={form.studentId} label="Student" onChange={e=>setForm({...form, studentId:e.target.value})}>
+              {students.map(s=> <MenuItem key={s.id} value={s.id}>{s.name} ({s.rollNumber||s.id})</MenuItem>)}
+            </Select>
+          </FormControl>
+          <FormControl fullWidth margin="dense">
+            <InputLabel>Assignment</InputLabel>
+            <Select value={form.assignmentId} label="Assignment" onChange={e=>setForm({...form, assignmentId:e.target.value})}>
+              {assignments.map(a=> <MenuItem key={a.id} value={a.id}>{a.title || a.id}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField label="Marks" value={form.marks} onChange={e=>setForm({...form, marks:e.target.value})} fullWidth margin="dense" />
+          <TextField label="Remarks" value={form.remarks} onChange={e=>setForm({...form, remarks:e.target.value})} fullWidth margin="dense" />
+          <Button type="submit" variant="contained" sx={{ mt:1 }}>Add Grade</Button>
+        </form>
+      </Paper>
+
+      <Paper sx={{ p:2, mb:2 }}>
+        <Typography variant="subtitle1">View Grades by Student</Typography>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <FormControl>
+            <InputLabel>Student</InputLabel>
+            <Select value={queryStudent} label="Student" onChange={e=>setQueryStudent(e.target.value)} sx={{ minWidth: 200 }}>
+              {students.map(s=> <MenuItem key={s.id} value={s.id}>{s.name} ({s.rollNumber||s.id})</MenuItem>)}
+            </Select>
+          </FormControl>
+          <Button variant="contained" onClick={handleLoad}>Load</Button>
+        </Box>
+      </Paper>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>ID</TableCell>
+              <TableCell>Student ID</TableCell>
+              <TableCell>Assignment ID</TableCell>
+              <TableCell>Marks</TableCell>
+              <TableCell>Remarks</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {grades.map(g=> (
+              <TableRow key={g.id}>
+                <TableCell>{g.id}</TableCell>
+                <TableCell>{students.find(s=>String(s.id)===String(g.studentId)) ? students.find(s=>String(s.id)===String(g.studentId)).name : g.studentId}</TableCell>
+                <TableCell>{assignments.find(a=>String(a.id)===String(g.assignmentId)) ? assignments.find(a=>String(a.id)===String(g.assignmentId)).title : g.assignmentId}</TableCell>
+                <TableCell>{g.marks}</TableCell>
+                <TableCell>{g.remarks}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+}
