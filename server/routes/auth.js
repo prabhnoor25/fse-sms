@@ -1,10 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { User } = require('../models');
+const { User, Activity } = require('../models');
 const router = express.Router();
 
-User.sync({alter:true});
+
 
 // Signup
 router.post('/signup', async (req, res) => {
@@ -26,6 +26,16 @@ router.post('/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(401).json({ error: 'Invalid credentials' });
+    // update lastLogin timestamp and log activity
+    try { 
+      await user.update({ lastLogin: new Date() }); 
+      try { 
+        const act = await Activity.create({ type: 'login', userId: user.id, message: `${user.name || user.username} logged in` });
+        const io = require('../socket').getIo();
+        const payload = { id: act.id, type: act.type, message: act.message, time: act.createdAt, name: user.name || user.username };
+        if (io) io.emit('activity', payload);
+      } catch(e){}
+    } catch (e) { /* ignore update errors */ }
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
     res.json({ token, user: { id: user.id, username: user.username, role: user.role, name: user.name, email: user.email } });
   } catch (err) {
