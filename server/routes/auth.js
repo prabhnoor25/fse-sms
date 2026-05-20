@@ -31,9 +31,6 @@ router.post('/login', async (req, res) => {
       await user.update({ lastLogin: new Date() }); 
       try { 
         const act = await Activity.create({ type: 'login', userId: user.id, message: `${user.name || user.username} logged in` });
-        const io = require('../socket').getIo();
-        const payload = { id: act.id, type: act.type, message: act.message, time: act.createdAt, name: user.name || user.username };
-        if (io) io.emit('activity', payload);
       } catch(e){}
     } catch (e) { /* ignore update errors */ }
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });

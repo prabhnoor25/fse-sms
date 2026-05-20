@@ -6,28 +6,28 @@ const sequelize = new Sequelize(process.env.DB_NAME || 'school_db', process.env.
 });
 
 const User = sequelize.define('User', {
-  username: { type: DataTypes.STRING, unique: true, allowNull: false },
+  username: { type: DataTypes.STRING, allowNull: false },
   password: { type: DataTypes.STRING, allowNull: false },
   role: { type: DataTypes.ENUM('admin', 'teacher', 'student'), allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
-  email: { type: DataTypes.STRING, unique: true, allowNull: false },
+  email: { type: DataTypes.STRING, allowNull: false },
   lastLogin: { type: DataTypes.DATE }
 });
 
 const Student = sequelize.define('Student', {
-  rollNumber: { type: DataTypes.STRING, unique: true, allowNull: false },
+  rollNumber: { type: DataTypes.STRING, allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
   class: { type: DataTypes.STRING },
   section: { type: DataTypes.STRING },
-  email: { type: DataTypes.STRING, unique: true },
+  email: { type: DataTypes.STRING },
   guardianName: { type: DataTypes.STRING },
   phone: { type: DataTypes.STRING }
 });
 
 const Teacher = sequelize.define('Teacher', {
-  employeeId: { type: DataTypes.STRING, unique: true, allowNull: false },
+  employeeId: { type: DataTypes.STRING, allowNull: false },
   name: { type: DataTypes.STRING, allowNull: false },
-  email: { type: DataTypes.STRING, unique: true, allowNull: false },
+  email: { type: DataTypes.STRING, allowNull: false },
   phone: { type: DataTypes.STRING },
   subjects: { type: DataTypes.STRING }
 });
@@ -40,7 +40,7 @@ const SchoolClass = sequelize.define('SchoolClass', {
 });
 
 const Subject = sequelize.define('Subject', {
-  code: { type: DataTypes.STRING, unique: true },
+  code: { type: DataTypes.STRING },
   name: { type: DataTypes.STRING, allowNull: false },
   description: { type: DataTypes.TEXT },
   classId: { type: DataTypes.INTEGER }
@@ -117,4 +117,50 @@ const Activity = sequelize.define('Activity', {
 Activity.belongsTo(User, { foreignKey: 'userId' });
 User.hasMany(Activity, { foreignKey: 'userId' });
 
-module.exports = { sequelize, User, Student, Teacher, SchoolClass, Subject, Enrollment, Assignment, Grade, Attendance, Activity };
+const Timetable = sequelize.define('Timetable', {
+  title: { type: DataTypes.STRING },
+  data: { type: DataTypes.TEXT }, // JSON string of timetable
+  forClassId: { type: DataTypes.INTEGER }, // nullable: targets a specific SchoolClass
+  createdBy: { type: DataTypes.INTEGER }
+});
+
+Timetable.belongsTo(User, { foreignKey: 'createdBy' });
+
+// Assignment Questions and Submissions (quiz support)
+const AssignmentQuestion = sequelize.define('AssignmentQuestion', {
+  assignmentId: { type: DataTypes.INTEGER, allowNull: false },
+  text: { type: DataTypes.TEXT, allowNull: false },
+  options: { type: DataTypes.TEXT }, // JSON string array of options
+  correctOption: { type: DataTypes.INTEGER }, // index of correct option
+  points: { type: DataTypes.FLOAT, defaultValue: 1 }
+});
+
+const Submission = sequelize.define('Submission', {
+  assignmentId: { type: DataTypes.INTEGER, allowNull: false },
+  studentId: { type: DataTypes.INTEGER, allowNull: false },
+  submittedAt: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  score: { type: DataTypes.FLOAT, defaultValue: 0 },
+  graded: { type: DataTypes.BOOLEAN, defaultValue: true }
+});
+
+const SubmissionAnswer = sequelize.define('SubmissionAnswer', {
+  submissionId: { type: DataTypes.INTEGER, allowNull: false },
+  questionId: { type: DataTypes.INTEGER, allowNull: false },
+  selectedOption: { type: DataTypes.INTEGER }
+});
+
+// Associations
+Assignment.hasMany(AssignmentQuestion, { foreignKey: 'assignmentId' });
+AssignmentQuestion.belongsTo(Assignment, { foreignKey: 'assignmentId' });
+
+Submission.belongsTo(Assignment, { foreignKey: 'assignmentId' });
+Submission.belongsTo(Student, { foreignKey: 'studentId' });
+Assignment.hasMany(Submission, { foreignKey: 'assignmentId' });
+Student.hasMany(Submission, { foreignKey: 'studentId' });
+
+Submission.hasMany(SubmissionAnswer, { foreignKey: 'submissionId' });
+SubmissionAnswer.belongsTo(Submission, { foreignKey: 'submissionId' });
+AssignmentQuestion.hasMany(SubmissionAnswer, { foreignKey: 'questionId' });
+SubmissionAnswer.belongsTo(AssignmentQuestion, { foreignKey: 'questionId' });
+
+module.exports = { sequelize, User, Student, Teacher, SchoolClass, Subject, Enrollment, Assignment, AssignmentQuestion, Submission, SubmissionAnswer, Grade, Attendance, Activity, Timetable };

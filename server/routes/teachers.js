@@ -29,10 +29,39 @@ router.post('/', permitRoles('admin'), async (req, res) => {
   }
 });
 
-// List teachers (authenticated users)
+// List teachers (admins see all; students see teachers for their classes)
 router.get('/', async (req, res) => {
-  const teachers = await Teacher.findAll({ attributes: ['id','employeeId','name','email','phone','subjects'] });
-  res.json({ teachers });
+  try {
+    if (req.user && req.user.role === 'student') {
+      const { User, Student, Enrollment, SchoolClass, Teacher, Subject } = require('../models');
+      const userRecord = await User.findByPk(req.user.id);
+      if (!userRecord) return res.json({ teachers: [] });
+      const student = await Student.findOne({ where: { rollNumber: userRecord.username } });
+      if (!student) return res.json({ teachers: [] });
+      const enrollments = await Enrollment.findAll({ where: { studentId: student.id }, attributes: ['classId'] });
+      const classIds = enrollments.map(e => e.classId);
+      if (classIds.length === 0) return res.json({ teachers: [] });
+      const classes = await SchoolClass.findAll({ where: { id: classIds }, attributes: ['id','name','teacherId'] });
+      const teacherIds = [...new Set(classes.map(c => c.teacherId).filter(Boolean))];
+      if (teacherIds.length === 0) return res.json({ teachers: [] });
+      const teachers = await Teacher.findAll({ where: { id: teacherIds } });
+      const subjects = await Subject.findAll({ where: { classId: classIds } });
+      const subjectsById = {};
+      subjects.forEach(s => { subjectsById[s.id] = s; });
+      const result = teachers.map(t => {
+        const subjIds = t.subjects ? String(t.subjects).split(',').map(x=>x.trim()).filter(Boolean) : [];
+        const subjNames = subjIds.map(id => subjectsById[id] ? subjectsById[id].name : id).filter(Boolean);
+        const classNames = classes.filter(c => c.teacherId === t.id).map(c => c.name);
+        return { id: t.id, employeeId: t.employeeId, name: t.name, email: t.email, phone: t.phone, subjects: subjNames, classes: classNames };
+      });
+      return res.json({ teachers: result });
+    }
+
+    const teachers = await Teacher.findAll({ attributes: ['id','employeeId','name','email','phone','subjects'] });
+    res.json({ teachers });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/:id', async (req, res) => {

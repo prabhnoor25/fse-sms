@@ -6,8 +6,6 @@ const { sequelize } = require('./models');
 
 const app = express();
 const server = http.createServer(app);
-const socket = require('./socket');
-const io = socket.init(server);
 
 app.use(cors());
 app.use(express.json());
@@ -24,6 +22,7 @@ app.use('/api/enrollments', require('./routes/enrollments'));
 app.use('/api/assignments', require('./routes/assignments'));
 app.use('/api/grades', require('./routes/grades'));
 app.use('/api/attendance', require('./routes/attendance'));
+app.use('/api/timetables', authMiddleware, require('./routes/timetables'));
 
 // Sync DB and start server
 sequelize.sync({ alter: true }).then(() => {

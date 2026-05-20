@@ -13,16 +13,13 @@ function permitRoles(...roles) {
 
 router.use(authMiddleware);
 
-// Create student (admin/teacher)
-router.post('/', permitRoles('admin', 'teacher'), async (req, res) => {
+// Create student (admin only)
+router.post('/', permitRoles('admin'), async (req, res) => {
   try {
     const student = await Student.create(req.body);
     try {
       const actorName = req.user ? (req.user.name || req.user.username) : 'User';
       const act = await Activity.create({ type: 'student_created', userId: req.user ? req.user.id : null, message: `${actorName} created student ${student.name}` });
-      const io = require('../socket').getIo();
-      const payload = { id: act.id, type: act.type, message: act.message, time: act.createdAt, name: student.name, actor: actorName };
-      if (io) io.emit('activity', payload);
     } catch(e) {}
     res.status(201).json({ student });
   } catch (err) {
@@ -30,10 +27,38 @@ router.post('/', permitRoles('admin', 'teacher'), async (req, res) => {
   }
 });
 
-// List students (authenticated users)
+// List students (admins see all; teachers see only students for their classes; students see their own record)
 router.get('/', async (req, res) => {
-  const students = await Student.findAll({ attributes: ['id','rollNumber','name','class','section','email','guardianName','phone'] });
-  res.json({ students });
+  try {
+    if (req.user && req.user.role === 'teacher') {
+      // find teacher record by the authenticated user id -> username (employeeId)
+      const { Teacher, SchoolClass, Enrollment, User } = require('../models');
+      const userRecord = await User.findByPk(req.user.id);
+      if (!userRecord) return res.json({ students: [] });
+      const teacher = await Teacher.findOne({ where: { employeeId: userRecord.username } });
+      if (!teacher) return res.json({ students: [] });
+      const classes = await SchoolClass.findAll({ where: { teacherId: teacher.id }, attributes: ['id'] });
+      const classIds = classes.map(c => c.id);
+      if (classIds.length === 0) return res.json({ students: [] });
+      const enrollments = await Enrollment.findAll({ where: { classId: classIds }, attributes: ['studentId'] });
+      const studentIds = [...new Set(enrollments.map(e => e.studentId))];
+      if (studentIds.length === 0) return res.json({ students: [] });
+      const students = await Student.findAll({ where: { id: studentIds }, attributes: ['id','rollNumber','name','class','section','email','guardianName','phone'] });
+      return res.json({ students });
+    }
+
+    if (req.user && req.user.role === 'student') {
+      // student should only see their own record (matched by rollNumber == username)
+      const s = await Student.findOne({ where: { rollNumber: req.user.username }, attributes: ['id','rollNumber','name','class','section','email','guardianName','phone'] });
+      return res.json({ students: s ? [s] : [] });
+    }
+
+    // admin or others: return all
+    const students = await Student.findAll({ attributes: ['id','rollNumber','name','class','section','email','guardianName','phone'] });
+    res.json({ students });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get('/:id', async (req, res) => {
@@ -42,7 +67,7 @@ router.get('/:id', async (req, res) => {
   res.json({ student });
 });
 
-router.put('/:id', permitRoles('admin', 'teacher'), async (req, res) => {
+router.put('/:id', permitRoles('admin'), async (req, res) => {
   try {
     const student = await Student.findByPk(req.params.id);
     if (!student) return res.status(404).json({ error: 'Not found' });
