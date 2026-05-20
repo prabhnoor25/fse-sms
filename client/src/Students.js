@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getStudents, createStudent, deleteStudent, updateStudent } from './api';
 import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 
-export default function Students({ token }) {
+export default function Students({ token, user }) {
   const [students, setStudents] = useState([]);
   const [form, setForm] = useState({ rollNumber: '', name: '', class: '', section: '', email: '', guardianName: '', phone: '', password: '' });
   const [error, setError] = useState('');
@@ -58,6 +58,7 @@ export default function Students({ token }) {
     <Box>
       <Typography variant="h5" gutterBottom>Students</Typography>
       {error && <Alert severity="error">{error}</Alert>}
+      {user && user.role === 'admin' && (
       <Paper sx={{ p:2, mb:2 }}>
         <form onSubmit={handleSubmit}>
           <TextField label="Roll Number" value={form.rollNumber} onChange={e=>setForm({...form, rollNumber:e.target.value})} fullWidth margin="dense" />
@@ -71,6 +72,7 @@ export default function Students({ token }) {
           <Button type="submit" variant="contained" sx={{ mt:1 }}>Add Student</Button>
         </form>
       </Paper>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -84,7 +86,7 @@ export default function Students({ token }) {
               <TableCell>Email</TableCell>
               <TableCell>Guardian</TableCell>
               <TableCell>Phone</TableCell>
-              <TableCell>Actions</TableCell>
+              {user && user.role === 'admin' && <TableCell>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -99,8 +101,12 @@ export default function Students({ token }) {
                 <TableCell>{s.guardianName}</TableCell>
                 <TableCell>{s.phone}</TableCell>
                 <TableCell>
-                  <Button onClick={()=>handleEditOpen(s)} sx={{ mr:1 }}>Edit</Button>
-                  <Button color="error" onClick={()=>handleDelete(s.id)}>Delete</Button>
+                  {user && user.role === 'admin' ? (
+                    <>
+                      <Button onClick={()=>handleEditOpen(s)} sx={{ mr:1 }}>Edit</Button>
+                      <Button color="error" onClick={()=>handleDelete(s.id)}>Delete</Button>
+                    </>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}

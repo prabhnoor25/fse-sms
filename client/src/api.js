@@ -1,7 +1,21 @@
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 async function handleRes(res) {
-  try { return await res.json(); } catch { return { error: 'Invalid response' }; }
+  const contentType = res.headers && res.headers.get ? res.headers.get('content-type') || '' : '';
+  if (contentType.includes('application/json')) {
+    try {
+      return await res.json();
+    } catch (e) {
+      return { error: 'Invalid JSON response' };
+    }
+  }
+  // fallback: return text body or status
+  try {
+    const text = await res.text();
+    return { error: text || res.statusText || 'Invalid response' };
+  } catch (e) {
+    return { error: 'Invalid response' };
+  }
 }
 
 function authHeader(token) {
@@ -89,11 +103,25 @@ export async function createAssignment(token, data) { const res = await fetch(`$
 export async function updateAssignment(token, id, data) { const res = await fetch(`${API_URL}/assignments/${id}`, { method: 'PUT', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
 export async function deleteAssignment(token, id) { const res = await fetch(`${API_URL}/assignments/${id}`, { method: 'DELETE', headers: authHeader(token) }); return handleRes(res); }
 
+// Timetables
+export async function getTimetables(token) { const res = await fetch(`${API_URL}/timetables`, { headers: authHeader(token) }); return handleRes(res); }
+
+// Assignment questions & submissions
+export async function getQuestions(token, assignmentId) { const res = await fetch(`${API_URL}/assignments/${assignmentId}/questions`, { headers: authHeader(token) }); return handleRes(res); }
+export async function createQuestion(token, assignmentId, data) { const res = await fetch(`${API_URL}/assignments/${assignmentId}/questions`, { method: 'POST', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
+export async function submitAssignment(token, assignmentId, answers) { const res = await fetch(`${API_URL}/assignments/${assignmentId}/submissions`, { method: 'POST', headers: authHeader(token), body: JSON.stringify({ answers }) }); return handleRes(res); }
+export async function getSubmissions(token, assignmentId) { const res = await fetch(`${API_URL}/assignments/${assignmentId}/submissions`, { headers: authHeader(token) }); return handleRes(res); }
+export async function getAssignmentStats(token, assignmentId) { const res = await fetch(`${API_URL}/assignments/${assignmentId}/stats`, { headers: authHeader(token) }); return handleRes(res); }
+export async function createTimetable(token, data) { const res = await fetch(`${API_URL}/timetables`, { method: 'POST', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
+export async function updateTimetable(token, id, data) { const res = await fetch(`${API_URL}/timetables/${id}`, { method: 'PUT', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
+export async function deleteTimetable(token, id) { const res = await fetch(`${API_URL}/timetables/${id}`, { method: 'DELETE', headers: authHeader(token) }); return handleRes(res); }
+
 // Enrollments
 export async function getEnrollments(token) { const res = await fetch(`${API_URL}/enrollments`, { headers: authHeader(token) }); return handleRes(res); }
 export async function createEnrollment(token, data) { const res = await fetch(`${API_URL}/enrollments`, { method: 'POST', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
 export async function updateEnrollment(token, id, data) { const res = await fetch(`${API_URL}/enrollments/${id}`, { method: 'PUT', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }
 export async function deleteEnrollment(token, id) { const res = await fetch(`${API_URL}/enrollments/${id}`, { method: 'DELETE', headers: authHeader(token) }); return handleRes(res); }
+
 
 // Grades & Attendance (basic)
 export async function createGrade(token, data) { const res = await fetch(`${API_URL}/grades`, { method: 'POST', headers: authHeader(token), body: JSON.stringify(data) }); return handleRes(res); }

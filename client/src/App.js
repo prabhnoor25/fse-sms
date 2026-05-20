@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Login from './Login';
 import Signup from './Signup';
 import Dashboard from './Dashboard';
+import TimetablesAdmin from './TimetablesAdmin';
 import Students from './Students';
 import Teachers from './Teachers';
 import Classes from './Classes';
@@ -41,7 +42,7 @@ function App() {
 
   const handleLogout = () => { setUser(null); setToken(''); setPage('login'); };
 
-  const navItems = [
+  const baseNavItems = [
     { key: 'dashboard', label: 'Dashboard', icon: <SchoolIcon /> },
     { key: 'students', label: 'Students', icon: <PeopleIcon /> },
     { key: 'teachers', label: 'Teachers', icon: <GroupIcon /> },
@@ -52,6 +53,23 @@ function App() {
     { key: 'grades', label: 'Grades', icon: <AssignmentIcon /> },
     { key: 'attendance', label: 'Attendance', icon: <AssignmentIcon /> }
   ];
+
+  // Build nav items with role-based visibility; remove enrollments for non-admins
+  let navItems = baseNavItems;
+  if (user) {
+    if (user.role === 'teacher') {
+      navItems = navItems.filter(i => i.key !== 'teachers');
+    }
+    if (user.role === 'student') {
+      navItems = navItems.filter(i => i.key !== 'students');
+    }
+    if (user.role !== 'admin') {
+      navItems = navItems.filter(i => i.key !== 'enrollments');
+    }
+    if (user.role === 'admin') {
+      navItems = [...navItems, { key: 'timetables', label: 'Timetables', icon: <TableRowsIcon /> }];
+    }
+  }
 
   return (
     <Box sx={{ display: 'flex' }}>
@@ -90,15 +108,16 @@ function App() {
           page === 'login' ? <Login setUser={setUser} setToken={setToken} setPage={setPage} /> : <Signup />
         ) : (
           <>
-            {page === 'dashboard' && <Dashboard user={user} token={token} />}
+            {page === 'dashboard' && (<Dashboard user={user} token={token} />)}
             {page === 'students' && <Students token={token} user={user} />}
-            {page === 'teachers' && <Teachers token={token} user={user} />}
+            {page === 'teachers' && user && user.role !== 'teacher' && <Teachers token={token} user={user} />}
             {page === 'classes' && <Classes token={token} user={user} />}
             {page === 'subjects' && <Subjects token={token} user={user} />}
             {page === 'assignments' && <Assignments token={token} user={user} />}
-            {page === 'enrollments' && <Enrollments token={token} user={user} />}
+            {page === 'enrollments' && user && user.role === 'admin' && <Enrollments token={token} user={user} />}
             {page === 'grades' && <Grades token={token} user={user} />}
             {page === 'attendance' && <Attendance token={token} user={user} />}
+            {page === 'timetables' && user && user.role === 'admin' && <TimetablesAdmin token={token} user={user} />}
           </>
         )}
       </Box>

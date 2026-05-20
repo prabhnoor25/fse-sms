@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getTeachers, createTeacher, deleteTeacher, getSubjects, updateTeacher } from './api';
 import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, FormControl, InputLabel, Select, MenuItem, OutlinedInput, Checkbox, ListItemText, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 
-export default function Teachers({ token }) {
+export default function Teachers({ token, user }) {
   const [teachers, setTeachers] = useState([]);
   const [subjectsList, setSubjectsList] = useState([]);
   const [form, setForm] = useState({ employeeId: '', name: '', email: '', phone: '', subjects: [], password: '' });
@@ -17,6 +17,13 @@ export default function Teachers({ token }) {
       } catch (e) {}
     })();
   }, [token]);
+
+  // helper that supports subjects from API as array of names or CSV of ids
+  const renderSubjects = (tSubjects) => {
+    if (!tSubjects) return '';
+    if (Array.isArray(tSubjects)) return tSubjects.join(', ');
+    return renderTeacherSubjects(tSubjects);
+  };
 
   const handleSubmit = async (e) => { e.preventDefault(); const payload = { ...form, subjects: Array.isArray(form.subjects) ? form.subjects.join(',') : form.subjects }; const res = await createTeacher(token, payload); if (res.teacher) { setForm({ employeeId: '', name: '', email: '', phone: '', subjects: [], password: '' }); load(); setError(''); } else setError(res.error || 'Create failed'); };
   const handleDelete = async (id) => { await deleteTeacher(token, id); load(); };
@@ -61,6 +68,7 @@ export default function Teachers({ token }) {
     <Box>
       <Typography variant="h5" gutterBottom>Teachers</Typography>
       {error && <Alert severity="error">{error}</Alert>}
+      {(!user || user.role !== 'student') && (
       <Paper sx={{ p:2, mb:2 }}>
         <form onSubmit={handleSubmit}>
           <TextField label="Employee ID" value={form.employeeId} onChange={e=>setForm({...form, employeeId:e.target.value})} fullWidth margin="dense" />
@@ -88,6 +96,7 @@ export default function Teachers({ token }) {
           <Button type="submit" variant="contained" sx={{ mt:1 }}>Add Teacher</Button>
         </form>
       </Paper>
+      )}
 
       <TableContainer component={Paper}>
         <Table>
@@ -96,10 +105,10 @@ export default function Teachers({ token }) {
               <TableCell>ID</TableCell>
               <TableCell>Emp ID</TableCell>
               <TableCell>Name</TableCell>
-              <TableCell>Email</TableCell>
+              {user && user.role === 'student' ? <TableCell>Class(es)</TableCell> : <TableCell>Email</TableCell>}
               <TableCell>Phone</TableCell>
               <TableCell>Subjects</TableCell>
-              <TableCell>Actions</TableCell>
+              {(!user || user.role !== 'student') && <TableCell>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -108,13 +117,22 @@ export default function Teachers({ token }) {
                 <TableCell>{t.id}</TableCell>
                 <TableCell>{t.employeeId}</TableCell>
                 <TableCell>{t.name}</TableCell>
-                <TableCell>{t.email}</TableCell>
-                <TableCell>{t.phone}</TableCell>
-                <TableCell>{renderTeacherSubjects(t.subjects)}</TableCell>
-                <TableCell>
-                  <Button onClick={()=>handleEditOpen(t)} sx={{ mr:1 }}>Edit</Button>
-                  <Button color="error" onClick={()=>handleDelete(t.id)}>Delete</Button>
-                </TableCell>
+                {user && user.role === 'student' ? (
+                  <>
+                    <TableCell>{(t.classes || []).join(', ')}</TableCell>
+                    <TableCell>{renderSubjects(t.subjects)}</TableCell>
+                  </>
+                ) : (
+                  <>
+                    <TableCell>{t.email}</TableCell>
+                    <TableCell>{t.phone}</TableCell>
+                    <TableCell>{renderSubjects(t.subjects)}</TableCell>
+                    <TableCell>
+                      <Button onClick={()=>handleEditOpen(t)} sx={{ mr:1 }}>Edit</Button>
+                      <Button color="error" onClick={()=>handleDelete(t.id)}>Delete</Button>
+                    </TableCell>
+                  </>
+                )}
               </TableRow>
             ))}
           </TableBody>

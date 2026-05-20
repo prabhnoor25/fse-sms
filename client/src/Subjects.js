@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { getSubjects, createSubject, deleteSubject, updateSubject, getClasses } from './api';
-import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+import React, { useEffect, useState, useMemo } from 'react';
+import { getSubjects, createSubject, deleteSubject, updateSubject, getClasses, getEnrollments, getStudents } from './api';
+import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem, Grid } from '@mui/material';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-export default function Subjects({ token }) {
+export default function Subjects({ token, user }) {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ code: '', name: '', description: '', classId: '' });
   const [classes, setClasses] = useState([]);
@@ -14,6 +15,29 @@ export default function Subjects({ token }) {
   const load = async () => { const res = await getSubjects(token); if (res.subjects) setItems(res.subjects); else setError(res.error || 'Failed to load'); };
   const loadRefs = async () => { const c = await getClasses(token); if (c.classes) setClasses(c.classes); };
   useEffect(()=>{ load(); loadRefs(); }, [token]);
+
+  useEffect(() => {
+    if (user && user.role === 'student') {
+      (async () => {
+        try {
+          const sres = await getStudents(token);
+          const allStudents = sres.students || [];
+          const me = allStudents.find(x => String(x.rollNumber) === String(user.username) || String(x.id) === String(user.id));
+          if (!me) return;
+          const eres = await getEnrollments(token);
+          const myEnrolls = (eres.enrollments || []).filter(en => String(en.studentId) === String(me.id));
+          const classIds = myEnrolls.map(en => String(en.classId));
+          const subRes = await getSubjects(token);
+          const mySubjects = (subRes.subjects || []).filter(s => classIds.includes(String(s.classId)));
+          setItems(mySubjects);
+          const classesAll = (await getClasses(token)).classes || [];
+          setClasses(classesAll.filter(c => classIds.includes(String(c.id))));
+        } catch (err) {
+          // ignore, keep full list if any step fails
+        }
+      })();
+    }
+  }, [user, token]);
 
   const handleSubmit = async (e) => { e.preventDefault(); const res = await createSubject(token, form); if (res.subject) { setForm({ code: '', name: '', description: '', classId: '' }); load(); setError(''); } else setError(res.error || 'Create failed'); };
   const handleDelete = async (id) => { await deleteSubject(token, id); load(); };
@@ -30,10 +54,18 @@ export default function Subjects({ token }) {
     if (res && res.subject) { handleEditClose(); load(); setError(''); } else setError(res.error || 'Update failed');
   };
 
+  const chartData = useMemo(() => {
+    if (!items || items.length === 0) return [];
+    const map = {};
+    items.forEach(s => { const cid = s.classId || 'Unassigned'; map[cid] = (map[cid] || 0) + 1; });
+    return Object.keys(map).map(cid => ({ className: (classes.find(c=>String(c.id)===String(cid))?.name) || cid, count: map[cid] }));
+  }, [items, classes]);
+
   return (
     <Box>
       <Typography variant="h5" gutterBottom>Subjects</Typography>
       {error && <Alert severity="error">{error}</Alert>}
+      {user && user.role !== 'student' && (
       <Paper sx={{ p:2, mb:2 }}>
         <form onSubmit={handleSubmit}>
           <TextField label="Code" value={form.code} onChange={e=>setForm({...form, code:e.target.value})} fullWidth margin="dense" />
@@ -48,6 +80,24 @@ export default function Subjects({ token }) {
           <Button type="submit" variant="contained" sx={{ mt:1 }}>Add Subject</Button>
         </form>
       </Paper>
+      )}
+
+      <Grid container spacing={2} sx={{ mb:2 }}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p:2, height: 300 }}>
+            <Typography variant="h6">Subjects per Class</Typography>
+            <ResponsiveContainer width="100%" height="85%">
+              <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="className" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="count" fill="#82ca9d" />
+              </BarChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+      </Grid>
 
       <TableContainer component={Paper}>
         <Table>

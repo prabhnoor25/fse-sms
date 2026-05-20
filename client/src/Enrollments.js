@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getEnrollments, createEnrollment, deleteEnrollment, updateEnrollment, getStudents, getClasses } from './api';
 import { Paper, Typography, TextField, Button, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Box, Alert, Dialog, DialogTitle, DialogContent, DialogActions, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
 
-export default function Enrollments({ token }) {
+export default function Enrollments({ token, user }) {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState({ studentId: '', classId: '' });
   const [students, setStudents] = useState([]);
@@ -10,11 +10,16 @@ export default function Enrollments({ token }) {
   const [error, setError] = useState('');
 
   const [editOpen, setEditOpen] = useState(false);
+
   const [editForm, setEditForm] = useState(null);
 
   const load = async () => { const res = await getEnrollments(token); if (res.enrollments) setItems(res.enrollments); else setError(res.error || 'Failed to load'); };
   const loadRefs = async () => { const s = await getStudents(token); if (s.students) setStudents(s.students); const c = await getClasses(token); if (c.classes) setClasses(c.classes); };
-  useEffect(()=>{ load(); loadRefs(); }, []);
+  useEffect(()=>{ if (!user || user.role !== 'admin') return; load(); loadRefs(); }, [token, user]);
+
+  if (!user || user.role !== 'admin') {
+    return (<Box><Alert severity="error">Not authorized to view enrollments.</Alert></Box>);
+  }
 
   const handleSubmit = async (e) => { e.preventDefault(); const res = await createEnrollment(token, form); if (res.enrollment) { setForm({ studentId: '', classId: '' }); load(); setError(''); } else setError(res.error || 'Create failed'); };
   const handleDelete = async (id) => { await deleteEnrollment(token, id); load(); };

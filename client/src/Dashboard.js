@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { getDashboard, getCounts } from './api';
-import { io as socketIOClient } from 'socket.io-client';
 
 import { Paper, Typography, Alert, Box, Grid, Card, CardContent, List, ListItem, ListItemText } from '@mui/material';
 import PeopleIcon from '@mui/icons-material/People';
@@ -9,6 +8,7 @@ import MenuBookIcon from '@mui/icons-material/MenuBook';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import SchoolIcon from '@mui/icons-material/School';
 import GroupIcon from '@mui/icons-material/Group';
+import MiuiCalendar from './MiuiCalendar';
 
 export default function Dashboard({ token, user }) {
   const [users, setUsers] = useState([]);
@@ -18,46 +18,26 @@ export default function Dashboard({ token, user }) {
 
   useEffect(() => {
     if (user.role === 'admin') {
-      getDashboard(token).then(res => {
-        if (res.users) setUsers(res.users);
-        if (res.activity) setRecentActivity(res.activity);
-        if (res.error) setError(res.error || 'Failed to load dashboard');
-      });
+      const fetchAndSet = () => {
+        getDashboard(token).then(res => {
+          if (res.users) setUsers(res.users);
+          if (res.activity) setRecentActivity(res.activity);
+          if (res.error) setError(res.error || 'Failed to load dashboard');
+        }).catch(()=>{});
+      };
+      fetchAndSet();
       getCounts(token).then(c => setCounts(c)).catch(()=>{});
-
-      let socket;
-      let pollingInterval;
-      try {
-        socket = socketIOClient('http://localhost:5000', { transports: ['websocket'] });
-        socket.on('connect', () => { console.info('Socket connected'); });
-        socket.on('activity', (a) => {
-          setRecentActivity(prev => [a, ...prev].slice(0,20));
-        });
-        socket.on('connect_error', (err) => {
-          console.warn('Socket connect_error', err);
-          // fallback to polling
-          if (!pollingInterval) {
-            pollingInterval = setInterval(() => {
-              getDashboard(token).then(res => { if (res.activity) setRecentActivity(res.activity); });
-            }, 5000);
-          }
-        });
-      } catch (e) {
-        // start polling if socket lib failed
-        pollingInterval = setInterval(() => {
-          getDashboard(token).then(res => { if (res.activity) setRecentActivity(res.activity); });
-        }, 5000);
-      }
-
-      return () => { if (socket) socket.disconnect(); if (pollingInterval) clearInterval(pollingInterval); };
+      const polling = setInterval(fetchAndSet, 5000);
+      return () => clearInterval(polling);
     }
   }, [token, user]);
 
   if (user.role !== 'admin') return (
-    <Paper elevation={3} sx={{ p: 4 }}>
+    <Box>
       <Typography variant="h4">Welcome, {user.name}</Typography>
       <Typography color="text.secondary">Role: {user.role}</Typography>
-    </Paper>
+      <MiuiCalendar user={user} token={token} />
+    </Box>
   );
 
   return (
